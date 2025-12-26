@@ -1,7 +1,7 @@
 12 -3 4.5
 99.01
 -0.25 7
-- + / * %
+- + / * % ^
 ( )
 =
 ,
@@ -9,4 +9,5 @@ Jorge,fudidilson
 pi p pididdy
 pi
 e
-e euler
+e Euler;
+;

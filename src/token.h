@@ -8,7 +8,8 @@ typedef enum {
     TOKEN_ASSIGN,
     TOKEN_PAREN,
     TOKEN_COMMA,
-    TOKEN_ERROR
+    TOKEN_ERROR,
+    TOKEN_END_EXPRESSION
 } TokenType;
 
 typedef enum{
@@ -20,11 +21,13 @@ typedef enum{
     OPERATOR_SUB,
     OPERATOR_MUL,
     OPERATOR_DIV,
+    OPERATOR_POT,
     OPERATOR_MOD,
     PAREN_OPEN,
     PAREN_CLOSE,
     ASSIGN,
     COMMA,
+    END,
     NONE
 } TokenValue;
 

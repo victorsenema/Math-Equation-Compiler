@@ -9,14 +9,15 @@
 //MAYBE add a feature so the user can see the process of the compiler
 const char *tokenTypeToString(TokenType type) {
     switch (type) {
-        case TOKEN_NUM:       return "TOKEN_NUM";
-        case TOKEN_ID:        return "TOKEN_ID";
-        case TOKEN_OPERATOR:  return "TOKEN_OPERATOR";
-        case TOKEN_ASSIGN:    return "TOKEN_ASSIGN";
-        case TOKEN_PAREN:     return "TOKEN_PAREN";
-        case TOKEN_COMMA:     return "TOKEN_COMMA";
-        case TOKEN_ERROR:     return "TOKEN_ERROR";
-        default:              return "UNKNOWN_TOKEN";
+        case TOKEN_NUM:            return "TOKEN_NUM";
+        case TOKEN_ID:             return "TOKEN_ID";
+        case TOKEN_OPERATOR:       return "TOKEN_OPERATOR";
+        case TOKEN_ASSIGN:         return "TOKEN_ASSIGN";
+        case TOKEN_PAREN:          return "TOKEN_PAREN";
+        case TOKEN_COMMA:          return "TOKEN_COMMA";
+        case TOKEN_ERROR:          return "TOKEN_ERROR";
+        case TOKEN_END_EXPRESSION: return "TOKEN_END_EXPRESSION";
+        default:                   return "UNKNOWN_TOKEN";
     }
 }
 
@@ -30,11 +31,13 @@ const char *tokenValueToString(TokenValue value) {
         case OPERATOR_SUB:    return "OPERATOR_SUB";
         case OPERATOR_MUL:    return "OPERATOR_MUL";
         case OPERATOR_DIV:    return "OPERATOR_DIV";
+        case OPERATOR_POT:    return "OPERATOR_POT";
         case OPERATOR_MOD:    return "OPERATOR_MOD";
         case PAREN_OPEN:      return "PAREN_OPEN";
         case PAREN_CLOSE:     return "PAREN_CLOSE";
         case ASSIGN:          return "ASSIGN";
         case COMMA:           return "COMMA";
+        case END:             return "END";
         case NONE:            return "NONE";
         default:              return "UNKNOWN_TOKEN";
     }
@@ -85,6 +88,20 @@ Token getTOKEN_PAREN(char* line){
     return tokenParen;
 }
 
+Token getTOKEN_END_EXPRESSION(){
+    Token tokenEND;
+
+    tokenEND.lexeme[0] = ';';
+    tokenEND.lexeme[1] = '\0';
+    tokenEND.tokenType = TOKEN_END_EXPRESSION;
+    tokenEND.tokenValue = END;
+    tokenEND.variableValue = -1;
+
+    globalLineCursor++;
+
+    return tokenEND;
+}
+
 Token getTOKEN_ASSING(){
     Token tokenAssing;
 
@@ -128,6 +145,9 @@ Token getTOKEN_OPERATOR(char* line){
             break;
         case '/':
             tokenOperator.tokenValue = OPERATOR_DIV;
+            break;
+        case '^':
+            tokenOperator.tokenValue = OPERATOR_POT;
             break;
         case 37:
             tokenOperator.tokenValue = OPERATOR_MOD;
@@ -186,6 +206,12 @@ Token getTOKEN_NUM_E(char* line, int linesize, Token tokenEuler) {
 
 Token getTOKEN_ID(char *line, int lineSize){
     Token tokenID;
+
+    tokenID.tokenType = TOKEN_ERROR;
+    tokenID.tokenValue = NONE;
+    tokenID.variableValue = -1;
+    tokenID.lexeme[0] = '\0';
+
     char tempString[256];
     int i = 0;
 
@@ -285,6 +311,9 @@ Token getToken(char *line, int lineSize){
     
     char c = line[globalLineCursor];
     
+    if(c == ';'){
+        return getTOKEN_END_EXPRESSION();
+    }
     //TOKEN_NUM only positives
     if (isDigit(c))
         return getTOKEN_NUM(line, lineSize);
@@ -309,7 +338,7 @@ Token getToken(char *line, int lineSize){
         return getTOKEN_COMMA();
 
     //operator characters
-    char operatorCharacteres[6] = { '+', '-', '*', '/', 37, '\0' };
+    char operatorCharacteres[7] = { '+', '-', '*', '/', '^', 37, '\0' };
     //TOKEN_OPERATOR
     for(int i = 0; operatorCharacteres[i] != '\0'; i++){
         if(c == operatorCharacteres[i])
@@ -340,14 +369,14 @@ void initLexer(FILE *file, SymbolTableHash *st){
             if (t.tokenType == TOKEN_ERROR){
                 break;
             }
-            insertHash(st, t);
+
+            if(t.tokenType == TOKEN_ID)
+                insertHash(st, t);
             printf("type=%s type='%s' lexeme='%s' value=%f\n",
                 tokenTypeToString(t.tokenType),
                 tokenValueToString(t.tokenValue),
                 t.lexeme,
                 t.variableValue);
         }
-
-        // TODO: process the line here
     }
 }
