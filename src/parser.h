@@ -2,6 +2,6 @@
 #define PARSER_H
 
 #include "lexer.h"
-void program(Lexer* lexer, Token* token);
+void program(Lexer* lexer, Token* token, SymbolTableHash* symbolTable);
 
 #endif

@@ -49,7 +49,6 @@ int lexemeValue(char *lexeme){
 }
 
 int divisionKey(int key, int tableSize){
-    printf("Table Positio[%d] ", (key & 0x7FFFFFFF) % tableSize);
     return (key & 0x7FFFFFFF) % tableSize;
 }
 
@@ -80,4 +79,23 @@ int insertHash(SymbolTableHash* hash, Token token){
         }
     }
     return 0;
+}
+
+Token* searchHash(SymbolTableHash* hash, char* lexeme) {
+    if (!hash) return NULL;
+
+    int key = lexemeValue(lexeme);
+    int position = divisionKey(key, hash->tableSize);
+
+    for (int i = 0; i < hash->tableSize; i++) {
+        int newPosition = linearProbing(position, i, hash->tableSize);
+
+        if (!hash->tokens[newPosition])
+            return NULL;
+
+        if (strcmp(hash->tokens[newPosition]->lexeme, lexeme) == 0)
+            return hash->tokens[newPosition];
+    }
+
+    return NULL;
 }

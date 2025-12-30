@@ -76,25 +76,37 @@ FOLLOW(<expressionF>) = { '^', '*', '/', '%', '+', '-', ';', ')', ',' }
 */
 #include <stdio.h>
 #include <stdbool.h>
+#include <math.h>
+#include <string.h>
 #include "token.h"
 #include "lexer.h"
+#include "symboltable.h"
 
 static void parserError(const char *msg);
 static void match(Lexer *lexer, Token *token, TokenType tt, TokenValue tv, const char *err);
+static bool isMathFunction(Token *t);
 
-void program(Lexer* lexer, Token* token);
-void statement_list(Lexer* lexer, Token* token);
-void statement(Lexer* lexer, Token* token);
-void declaration_variable(Lexer* lexer, Token* token);
-void print(Lexer* lexer, Token* token);
+float executeOpration(TokenType type, TokenValue value, float num1, float num2);
+float mathFunction(TokenValue type, float num1, float num2);
 
-void expressionE(Lexer* lexer, Token* token);
-void expressionE1(Lexer* lexer, Token* token);
-void expressionT(Lexer* lexer, Token* token);
-void expressionT1(Lexer* lexer, Token* token);
-void expressionP(Lexer* lexer, Token* token);
-void expressionP1(Lexer* lexer, Token* token);
-void expressionF(Lexer* lexer, Token* token);
+// program / statements
+void program(Lexer* lexer, Token* token, SymbolTableHash* symbolTable);
+void statement_list(Lexer* lexer, Token* token, SymbolTableHash* symbolTable);
+void statement(Lexer* lexer, Token* token, SymbolTableHash* symbolTable);
+void declaration_variable(Lexer* lexer, Token* token, SymbolTableHash* symbolTable);
+void printProcedure(Lexer* lexer, Token* token, SymbolTableHash* symbolTable);
+
+// expressions
+float expressionE(Lexer* lexer, Token* token, SymbolTableHash* symbolTable);
+float expressionE1(Lexer* lexer, Token* token, SymbolTableHash* symbolTable, float acc);
+
+float expressionT(Lexer* lexer, Token* token, SymbolTableHash* symbolTable);
+float expressionT1(Lexer* lexer, Token* token, SymbolTableHash* symbolTable, float acc);
+
+float expressionP(Lexer* lexer, Token* token, SymbolTableHash* symbolTable);
+float expressionP1(Lexer* lexer, Token* token, SymbolTableHash* symbolTable, float left);
+
+float expressionF(Lexer* lexer, Token* token, SymbolTableHash* symbolTable);
 
 static void parserError(const char *errorMessage){
         if (errorMessage && errorMessage[0] != '\0')
@@ -109,10 +121,14 @@ static void match(Lexer *lexer, Token *token, TokenType tt, TokenValue tv, const
 
         parserError(err);
 
-        // PANIC MODE:
-        // if (token->tokenType != TOKEN_EOF) {
-        //         *token = getNextToken(lexer);
-        // }
+        //PANIC MODE:
+        if (token->tokenType != TOKEN_EOF) {
+                *token = getNextToken(lexer);
+        }
+}
+
+float mathFunction(TokenValue type, float num1, float num2){
+        return -1;
 }
 
 static bool isMathFunction(Token *t){
@@ -123,217 +139,227 @@ static bool isMathFunction(Token *t){
                || ... */);
 }
 
-
-void expressionF(Lexer *lexer, Token *token){
-    if (token->tokenType == TOKEN_PAREN && token->tokenValue == PAREN_OPEN) {
-        match(lexer, token, TOKEN_PAREN, PAREN_OPEN, "Expected '('\n");
-        expressionE(lexer, token);
-        match(lexer, token, TOKEN_PAREN, PAREN_CLOSE, "Expected ')'\n");
-        return;
-    }
-    if (token->tokenType == TOKEN_ID) {
-        match(lexer, token, TOKEN_ID, NONE, "Expected ID\n");
-        return;
-    }
-    if (token->tokenType == TOKEN_NUM) {
-        match(lexer, token, TOKEN_NUM, NONE, "Expected NUM\n");
-        return;
-    }
-    if (isMathFunction(token)) {
-        TokenValue fn = token->tokenValue;
-        match(lexer, token, TOKEN_FUNCTION, fn, "Expected math function\n");
-        match(lexer, token, TOKEN_PAREN, PAREN_OPEN, "Expected '('\n");
-        expressionE(lexer, token);
-        if (fn == FUNCTION_LOG) {
-            match(lexer, token, TOKEN_COMMA, COMMA, "Expected ','\n");
-            expressionE(lexer, token);
+float executeOpration(TokenType type, TokenValue value, float num1, float num2){
+        if(type == TOKEN_OPERATOR){
+                switch(value){
+                        case OPERATOR_SUM:
+                                return num1 + num2;
+                        case OPERATOR_SUB:
+                                return num1 - num2;
+                        case OPERATOR_MUL:
+                                return num1 * num2;
+                        case OPERATOR_DIV:
+                                if(num2 == 0) {
+                                        parserError("ERROR: division by 0\n");
+                                        return -1;
+                                }
+                                return num1 / num2;
+                        case OPERATOR_POT:
+                                return pow(num1,num2);
+                        case OPERATOR_MOD:
+                                return (float)((int)num1 % (int)num2);
+                        default:
+                                parserError("ERROR: invalid operator\n");
+                                return -1;
+                }
         }
-
-        match(lexer, token, TOKEN_PAREN, PAREN_CLOSE, "Expected ')'\n");
-        return;
-    }
-
-    parserError("Unexpected token in <ExpressionF>. Expected '(', id, num or math function\n");
+        return -1;
 }
 
-void expressionP1(Lexer* lexer, Token* token){
+float expressionF(Lexer *lexer, Token *token, SymbolTableHash* symbolTable){
+        /*<expressionF>  → '(' <expressionE> ')'
+              | id
+              | num
+              | function '(' <expressionE> ',' <expressionE> ')'*/
+        //FIRST(<expressionF>) = { '(', id, num, function }
+        //FOLLOW(<expressionF>) = { '^', '*', '/', '%', '+', '-', ';', ')', ',' }
+        float value;
+        if (token->tokenType == TOKEN_PAREN && token->tokenValue == PAREN_OPEN) {
+                match(lexer, token, TOKEN_PAREN, PAREN_OPEN, "Expected '('\n");
+                value = expressionE(lexer, token, symbolTable);
+                match(lexer, token, TOKEN_PAREN, PAREN_CLOSE, "Expected ')'\n");
+                return value;
+        }
+        if (token->tokenType == TOKEN_ID) {
+                Token* var = searchHash(symbolTable, token->lexeme);
+                        if (!var) {
+                        parserError("Undefined variable\n");
+                        return -1;
+                }
+                value = var->variableValue;
+                match(lexer, token, TOKEN_ID, NONE, "Expected ID\n");
+                return value;
+                }
+        if (token->tokenType == TOKEN_NUM) {
+                value = token->variableValue;
+                match(lexer, token, TOKEN_NUM, NONE, "Expected NUM\n");
+                return value;
+        }
+        if (isMathFunction(token)) {
+                TokenValue functionType = token->tokenValue;
+                float value1, value2;
+                TokenValue fn = token->tokenValue;
+                match(lexer, token, TOKEN_FUNCTION, fn, "Expected math function\n");
+                match(lexer, token, TOKEN_PAREN, PAREN_OPEN, "Expected '('\n");
+                value1 = expressionE(lexer, token, symbolTable);
+                if (fn == FUNCTION_LOG) {
+                        match(lexer, token, TOKEN_COMMA, COMMA, "Expected ','\n");
+                        value2 = expressionE(lexer, token, symbolTable);
+                }
+
+                match(lexer, token, TOKEN_PAREN, PAREN_CLOSE, "Expected ')'\n");
+                return mathFunction(functionType, value1, value2);
+        }
+
+        parserError("Unexpected token in <ExpressionF>. Expected '(', id, num or math function\n");
+        return -1;
+}
+
+float expressionP1(Lexer* lexer, Token* token, SymbolTableHash* symbolTable, float left){
         /*<expressionP'> → '^' <expressionP> | ε*/
         //FIRST(<expressionP'>) = { '^', ε }
         //FOLLOW(<expressionP'>) = { '*', '/', '%', '+', '-', ';', ')', ',' }
-        if (token->tokenType == TOKEN_OPERATOR && token->tokenValue == OPERATOR_POT) {
-                match(lexer, token, TOKEN_OPERATOR, OPERATOR_POT, "Expected '^'\n");
-                expressionP(lexer, token);
-                return;
-        }
-
-        //FOLLOW: lookahed that analysises
-        if (token->tokenType == TOKEN_OPERATOR &&
-                (token->tokenValue == OPERATOR_MUL ||
-                token->tokenValue == OPERATOR_DIV ||
-                token->tokenValue == OPERATOR_MOD ||
-                token->tokenValue == OPERATOR_SUM ||
-                token->tokenValue == OPERATOR_SUB)) {
-                return;
-        }
-
-        if (token->tokenType == TOKEN_END_EXPRESSION && token->tokenValue == END) return; // ';'
-        if (token->tokenType == TOKEN_PAREN && token->tokenValue == PAREN_CLOSE) return;  // ')'
-        if (token->tokenType == TOKEN_COMMA && token->tokenValue == COMMA) return;        // ','
-        
-        parserError("Unexpected token in <ExpressionP1>. Expected {operators,';',')',',' }\n");
-        return;
+        if (token->tokenType == TOKEN_OPERATOR && token->tokenValue == OPERATOR_POT){
+                match(lexer, token, TOKEN_OPERATOR, OPERATOR_POT, "Expected '^'");
+                float right = expressionP(lexer, token, symbolTable); 
+                return pow(left, right);
+    }
+    return left;
 }
 
-void expressionP(Lexer* lexer, Token* token){
+float expressionP(Lexer* lexer, Token* token, SymbolTableHash* symbolTable){
         /*<expressionP>  → <expressionF> <expressionP'>*/
         //FIRST(<expressionP>) = { '(', id, num, function }
         //FOLLOW(<expressionP>) = { '*', '/', '%', '+', '-', ';', ')', ',' }
-        expressionF(lexer, token);
-        expressionP1(lexer, token);
-        return;
+        float left = expressionF(lexer, token, symbolTable);
+        return expressionP1(lexer, token, symbolTable, left);
 }
 
-void expressionT1(Lexer* lexer, Token* token){
+float expressionT1(Lexer* lexer, Token* token, SymbolTableHash* symbolTable, float acumulator){
         /*<expressionT'> → '*' <expressionP> <expressionT'>
                       | '/' <expressionP> <expressionT'>
                       | '%' <expressionP> <expressionT'>
                       | ε*/
         //FIRST(<expressionT'>) = { '*', '/', '%', ε }
         //FOLLOW(<expressionT'>) = { '+', '-', ';', ')', ',' }
-
-        if (token->tokenType == TOKEN_OPERATOR && token->tokenValue == OPERATOR_MUL) {
-                match(lexer, token, TOKEN_OPERATOR, OPERATOR_MUL, "Expected '*'\n");
-                expressionP(lexer, token);
-                expressionT1(lexer, token);
-                return;
+        if (token->tokenType == TOKEN_OPERATOR) {
+                TokenValue op = token->tokenValue;
+                if (op == OPERATOR_MUL || op == OPERATOR_DIV || op == OPERATOR_MOD) {
+                        match(lexer, token, TOKEN_OPERATOR, op, "Expected operator");
+                        float right = expressionP(lexer, token, symbolTable);
+                        acumulator = executeOpration(TOKEN_OPERATOR, op, acumulator, right);
+                        return expressionT1(lexer, token, symbolTable, acumulator);
+                }
         }
-
-        if (token->tokenType == TOKEN_OPERATOR && token->tokenValue == OPERATOR_DIV) {
-                match(lexer, token, TOKEN_OPERATOR, OPERATOR_DIV, "Expected '/'\n");
-                expressionP(lexer, token);
-                expressionT1(lexer, token);
-                return;
-        }
-
-        if (token->tokenType == TOKEN_OPERATOR && token->tokenValue == OPERATOR_MOD) {
-                match(lexer, token, TOKEN_OPERATOR, OPERATOR_MOD, "Expected '%'\n");
-                expressionP(lexer, token);
-                expressionT1(lexer, token);
-                return;
-        }
-
-        if (token->tokenType == TOKEN_OPERATOR &&
-            (token->tokenValue == OPERATOR_SUM || token->tokenValue == OPERATOR_SUB)) {
-                return;
-        }
-
-        if (token->tokenType == TOKEN_END_EXPRESSION && token->tokenValue == END) return; // ';'
-        if (token->tokenType == TOKEN_PAREN && token->tokenValue == PAREN_CLOSE) return;  // ')'
-        if (token->tokenType == TOKEN_COMMA && token->tokenValue == COMMA) return;        // ','
-        parserError("Unexpected token in <ExpressionT1>. Expected {operators,';',')',',' }\n");
+    return acumulator;
 }
 
-void expressionT(Lexer* lexer, Token* token){
+float expressionT(Lexer* lexer, Token* token, SymbolTableHash* symbolTable){
         /*<expressionT>  → <expressionP> <expressionT'>*/
         //FIRST(<expressionT>) = { '(', id, num, function }
         //FOLLOW(<expressionT>) = { '+', '-', ';', ')', ',' }
-        expressionP(lexer, token);
-        expressionT1(lexer, token);
-        return;
+        float left = expressionP(lexer, token, symbolTable);
+        return expressionT1(lexer, token, symbolTable, left);
 }
 
-void expressionE1(Lexer* lexer, Token* token){
+float expressionE1(Lexer* lexer, Token* token, SymbolTableHash* symbolTable, float acumulator){
         /*<expressionE'> → '+' <expressionT> <expressionE'>
                       | '-' <expressionT> <expressionE'>
                       | ε*/
         //FIRST(<expressionE'>) = { '+', '-', ε }
         //FOLLOW(<expressionE'>) = { ';', ')', ',' }
-        if(token->tokenType == TOKEN_OPERATOR && token->tokenValue == OPERATOR_SUB){
-                match(lexer, token, TOKEN_OPERATOR, OPERATOR_SUB, "Expected '-'\n");
-                expressionT(lexer, token);
-                expressionE1(lexer, token);
-                return;
+        if (token->tokenType == TOKEN_OPERATOR) {
+                TokenValue op = token->tokenValue;
+                if (op == OPERATOR_SUM || op == OPERATOR_SUB) {
+                        match(lexer, token, TOKEN_OPERATOR, op, "Expected operator");
+                        float right = expressionT(lexer, token, symbolTable);
+                        acumulator = executeOpration(TOKEN_OPERATOR, op, acumulator, right);
+                        return expressionE1(lexer, token, symbolTable, acumulator);
+                }
         }
-        if(token->tokenType == TOKEN_OPERATOR && token->tokenValue == OPERATOR_SUM){
-                match(lexer, token, TOKEN_OPERATOR, OPERATOR_SUM, "Expected '+'\n");
-                expressionT(lexer, token);
-                expressionE1(lexer, token);
-                return;
-        }
-
-        if (token->tokenType == TOKEN_END_EXPRESSION && token->tokenValue == END) return; // ';'
-        if (token->tokenType == TOKEN_PAREN && token->tokenValue == PAREN_CLOSE) return;  // ')'
-        if (token->tokenType == TOKEN_COMMA && token->tokenValue == COMMA) return;        // ','
-
-        parserError("Unexpected token in <ExpressionE1>. Expected {'+','-',';',')',','}\n");
-        return;
+    return acumulator;
 }
 
-void expressionE(Lexer* lexer, Token* token){
+float expressionE(Lexer* lexer, Token* token, SymbolTableHash* symbolTable){
         /*<expressionE>  → <expressionT> <expressionE'>*/
         //FIRST(<expressionE>) = { '(', id, num, function }
         //FOLLOW(<expressionE>) = { ';', ')', ',' }
-        expressionT(lexer, token);
-        expressionE1(lexer,token);
-        return;
+        float left = expressionT(lexer, token, symbolTable);
+        return expressionE1(lexer,token,symbolTable, left);
 }
 
-void declaration_variable(Lexer* lexer, Token* token){
+void declaration_variable(Lexer* lexer, Token* token, SymbolTableHash *symbolTable){
         /*<declaration_variable> → id '=' <expressionE> ';'*/
         //FIRST(<declaration_variable>) = { id }
         //FOLLOW(<declaration_variable>) = { id, function_print, $ }
         if(token->tokenType == TOKEN_ID){
-                match(lexer, token, TOKEN_ID, NONE, "Expected id\n");
-                match(lexer, token, TOKEN_ASSIGN, ASSIGN, "Expected '='\n");
-                expressionE(lexer, token);
-                match(lexer, token, TOKEN_END_EXPRESSION, END, "Expected ';'\n");
+                char varName[32];
+                strcpy(varName, token->lexeme);
+
+                match(lexer, token, TOKEN_ID, NONE, "Expected id");
+                match(lexer, token, TOKEN_ASSIGN, ASSIGN, "Expected '='");
+
+                float value = expressionE(lexer, token, symbolTable);
+
+                Token* var = searchHash(symbolTable, varName);
+                if (var) {
+                var->variableValue = value;
+                } else {
+                        Token newVar;
+                        strcpy(newVar.lexeme, varName);
+                        newVar.tokenType = TOKEN_ID;
+                        newVar.variableValue = value;
+                        insertHash(symbolTable, newVar);
+                }
+                match(lexer, token, TOKEN_END_EXPRESSION, END, "Expected ';'");
                 return;
         }
-        parserError("Expected id\n");
+        parserError("Unexpected token in <declaration_variable>. Expected id\n");
 }
 
-void print(Lexer* lexer, Token* token){
+void printProcedure(Lexer* lexer, Token* token, SymbolTableHash* symbolTable){
         /*<print> → function_print '(' expressionE ')' ';'*/
         //FIRST(<print>) = { function_print }
         //FOLLOW(<print>) = { id, function_print, $ }
         if(token->tokenType == TOKEN_FUNCTION && token->tokenValue == FUNCTION_PRINT){
                 match(lexer, token, TOKEN_FUNCTION, FUNCTION_PRINT, "Expected print\n");
                 match(lexer, token, TOKEN_PAREN, PAREN_OPEN, "Expected '('\n");
-                expressionE(lexer, token);
+                float result = expressionE(lexer, token, symbolTable);
                 match(lexer, token, TOKEN_PAREN, PAREN_CLOSE, "Expected ')'\n");
                 match(lexer, token, TOKEN_END_EXPRESSION, END, "Expected ';'\n");
+                printf("%f\n", result);
                 return;
         }
         parserError("Unexpected token in <print>. Expected print\n");
         return;
 }
 
-void statement(Lexer* lexer, Token* token){
+void statement(Lexer* lexer, Token* token, SymbolTableHash* symbolTable){
         /*<statement> → <declaration_variable>
                     | <print>*/
         //FIRST(<statement>) = { id, function_print }
         //FOLLOW(<statement>) = { id, function_print, $ }
         if(token->tokenType == TOKEN_ID){
-                declaration_variable(lexer,token);
+                declaration_variable(lexer,token, symbolTable);
                 return;
         }
         if(token->tokenType == TOKEN_FUNCTION && token->tokenValue == FUNCTION_PRINT){
-                print(lexer, token);
+                printProcedure(lexer, token, symbolTable);
                 return;
         }
         parserError("Unexpected token in <statement>. Expected id or print\n");
         return;
 }
 
-void statement_list(Lexer* lexer, Token* token){
+void statement_list(Lexer* lexer, Token* token, SymbolTableHash* symbolTable){
         /*<statement_list> → <statement> <statement_list>
                          | ε*/
         //FIRST(<statement_list>) = { id, function_print, ε }
         //FOLLOW(<statement_list>) = { $ }
         if (token->tokenType == TOKEN_ID ||
             (token->tokenType == TOKEN_FUNCTION && token->tokenValue == FUNCTION_PRINT)) {
-                statement(lexer, token);
-                statement_list(lexer, token);
+                statement(lexer, token, symbolTable);
+                statement_list(lexer, token, symbolTable);
                 return;
         }
         if (token->tokenType == TOKEN_EOF) return;
@@ -341,9 +367,9 @@ void statement_list(Lexer* lexer, Token* token){
         parserError("Unexpected token in <statement_list>. Expected id, print, or EOF\n");
 }
 
-void program(Lexer* lexer, Token* token){
+void program(Lexer* lexer, Token* token, SymbolTableHash* symbolTable){
         /*<program> → <statement_list>*/
         //FIRST(<program>) = { id, function_print, ε }
         //FOLLOW(<program>) = { $ }
-        statement_list(lexer, token);
+        statement_list(lexer, token, symbolTable);
 }

@@ -9,5 +9,6 @@ int lexemeValue(char *lexeme);
 int divisionKey(int key, int tableSize);
 int linearProbing(int position, int i, int tableSize);
 int insertHash(SymbolTableHash* hash, Token token);
+Token* searchHash(SymbolTableHash* hash, char* lexeme);
 
 #endif

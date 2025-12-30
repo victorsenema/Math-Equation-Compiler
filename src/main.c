@@ -33,26 +33,21 @@ int main(void) {
     Lexer lx;
     initLexer(&lx, file, st);
 
-    // -------- PARSER TEST (instead of lexer dump) --------
     Token tk = getNextToken(&lx);
 
     if (tk.tokenType == TOKEN_ERROR) {
         printf("LEXICAL ERROR at line %d\n", lx.lineNumber);
     } else {
-        program(&lx, &tk);
+        program(&lx, &tk, st);
 
-        // after parsing, we should be at EOF
-        if (tk.tokenType == TOKEN_EOF) {
-            printf("PARSE OK\n");
-        } else {
+        if (tk.tokenType != TOKEN_EOF) {
             printf("PARSE ERROR: expected EOF, got type=%s value=%s lexeme='%s' (line %d)\n",
-                   tokenTypeToString(tk.tokenType),
-                   tokenValueToString(tk.tokenValue),
-                   tk.lexeme,
-                   lx.lineNumber);
+            tokenTypeToString(tk.tokenType),
+            tokenValueToString(tk.tokenValue),
+            tk.lexeme,
+            lx.lineNumber);
         }
     }
-    // ----------------------------------------------------
 
     freeHash(st);
     fclose(file);
