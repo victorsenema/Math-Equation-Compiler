@@ -1,4 +1,4 @@
-//LTODO: OOK FOR EVERY % IN STRING
+//
 /*
 FOR THE FUTURE ME:
 To make the parser it need to analyse the LL1 production, the first and the follow:
@@ -127,8 +127,20 @@ static void match(Lexer *lexer, Token *token, TokenType tt, TokenValue tv, const
         }
 }
 
-float mathFunction(TokenValue type, float num1, float num2){
-        return -1;
+float logFunction(float num, float base){
+        if (num <= 0.0 || base <= 0.0 || base == 1.0){
+                parserError("ERROR: Invalid input for log function");
+                return NAN;
+        }
+        return log(num) / log(base);
+}
+float mathFunction(TokenValue tokenValue, float num1, float num2){
+        switch(tokenValue){
+                case FUNCTION_LOG:
+                        return logFunction(num1, num2);
+                default: return NAN;
+        }
+        return NAN;
 }
 
 static bool isMathFunction(Token *t){
@@ -151,19 +163,24 @@ float executeOpration(TokenType type, TokenValue value, float num1, float num2){
                         case OPERATOR_DIV:
                                 if(num2 == 0) {
                                         parserError("ERROR: division by 0\n");
-                                        return -1;
+                                        return NAN;
                                 }
                                 return num1 / num2;
                         case OPERATOR_POT:
                                 return pow(num1,num2);
                         case OPERATOR_MOD:
-                                return (float)((int)num1 % (int)num2);
+                                int tempNum2 = (int)num2;
+                                if(num2 == 0) {
+                                        parserError("ERROR: modulo by 0\n");
+                                        return NAN;
+                                }
+                                return (float)((int)num1 % tempNum2);
                         default:
                                 parserError("ERROR: invalid operator\n");
-                                return -1;
+                                return NAN;
                 }
         }
-        return -1;
+        return NAN;
 }
 
 float expressionF(Lexer *lexer, Token *token, SymbolTableHash* symbolTable){
@@ -184,7 +201,7 @@ float expressionF(Lexer *lexer, Token *token, SymbolTableHash* symbolTable){
                 Token* var = searchHash(symbolTable, token->lexeme);
                         if (!var) {
                         parserError("Undefined variable\n");
-                        return -1;
+                        return NAN;
                 }
                 value = var->variableValue;
                 match(lexer, token, TOKEN_ID, NONE, "Expected ID\n");
@@ -197,7 +214,7 @@ float expressionF(Lexer *lexer, Token *token, SymbolTableHash* symbolTable){
         }
         if (isMathFunction(token)) {
                 TokenValue functionType = token->tokenValue;
-                float value1, value2;
+                float value1 = 0, value2 = 0;
                 TokenValue fn = token->tokenValue;
                 match(lexer, token, TOKEN_FUNCTION, fn, "Expected math function\n");
                 match(lexer, token, TOKEN_PAREN, PAREN_OPEN, "Expected '('\n");
@@ -212,7 +229,7 @@ float expressionF(Lexer *lexer, Token *token, SymbolTableHash* symbolTable){
         }
 
         parserError("Unexpected token in <ExpressionF>. Expected '(', id, num or math function\n");
-        return -1;
+        return NAN;
 }
 
 float expressionP1(Lexer* lexer, Token* token, SymbolTableHash* symbolTable, float left){
@@ -292,29 +309,41 @@ void declaration_variable(Lexer* lexer, Token* token, SymbolTableHash *symbolTab
         /*<declaration_variable> → id '=' <expressionE> ';'*/
         //FIRST(<declaration_variable>) = { id }
         //FOLLOW(<declaration_variable>) = { id, function_print, $ }
-        if(token->tokenType == TOKEN_ID){
-                char varName[32];
-                strcpy(varName, token->lexeme);
 
-                match(lexer, token, TOKEN_ID, NONE, "Expected id");
-                match(lexer, token, TOKEN_ASSIGN, ASSIGN, "Expected '='");
-
-                float value = expressionE(lexer, token, symbolTable);
-
-                Token* var = searchHash(symbolTable, varName);
-                if (var) {
-                var->variableValue = value;
-                } else {
-                        Token newVar;
-                        strcpy(newVar.lexeme, varName);
-                        newVar.tokenType = TOKEN_ID;
-                        newVar.variableValue = value;
-                        insertHash(symbolTable, newVar);
-                }
-                match(lexer, token, TOKEN_END_EXPRESSION, END, "Expected ';'");
+        if(token->tokenType != TOKEN_ID){
+                parserError("Unexpected token in <declaration_variable>. Expected id\n");
                 return;
         }
-        parserError("Unexpected token in <declaration_variable>. Expected id\n");
+        char varName[32];
+        strcpy(varName, token->lexeme);
+        TokenValue idKind = token->tokenValue;
+        match(lexer, token, TOKEN_ID, NONE, "Expected id\n");
+
+        if(idKind == ID_IMMUTABLE){
+                parserError("ERROR: cannot assign to immutable identifier\n");
+                while (token->tokenType != TOKEN_END_EXPRESSION &&
+                token->tokenType != TOKEN_EOF) {
+                *token = getNextToken(lexer);
+                }
+                if (token->tokenType == TOKEN_END_EXPRESSION)
+                        *token = getNextToken(lexer);
+        return;
+    }
+
+    match(lexer, token, TOKEN_ASSIGN, ASSIGN, "Expected '='\n");
+    float value = expressionE(lexer, token, symbolTable);
+    Token* var = searchHash(symbolTable, varName);
+    if (var) {
+        var->variableValue = value;
+    } else {
+        Token newVar;
+        strcpy(newVar.lexeme, varName);
+        newVar.tokenType = TOKEN_ID;
+        newVar.variableValue = value;
+        insertHash(symbolTable, newVar);
+    }
+
+        match(lexer, token, TOKEN_END_EXPRESSION, END, "Expected ';'\n");
 }
 
 void printProcedure(Lexer* lexer, Token* token, SymbolTableHash* symbolTable){

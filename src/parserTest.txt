@@ -3,6 +3,6 @@ y = 3;
 
 z = x + y * 4;
 print(z);
-
+print(pi);
 print((z ^ 2) % 5);
-print(log(8, 2));
+print(log(3, 2));

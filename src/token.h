@@ -16,8 +16,7 @@ typedef enum {
 
 typedef enum{
     NUM,
-    NUM_PI,
-    NUM_EULER,
+    ID_IMMUTABLE,
     ID,
     FUNCTION_LOG,
     FUNCTION_PRINT,

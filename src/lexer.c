@@ -25,8 +25,7 @@ const char *tokenTypeToString(TokenType type) {
 const char *tokenValueToString(TokenValue value) {
     switch (value) {
         case NUM:             return "NUM";
-        case NUM_PI:          return "NUM_PI";
-        case NUM_EULER:       return "NUM_EULER";
+        case ID_IMMUTABLE:    return "ID_IMMUTABLE";
         case FUNCTION_LOG:    return "FUNCTION_LOG";
         case FUNCTION_PRINT:  return "FUNCTION_PRINT";
         case ID:              return "ID";
@@ -44,6 +43,31 @@ const char *tokenValueToString(TokenValue value) {
         case NONE:            return "NONE";
         default:              return "UNKNOWN_TOKEN";
     }
+}
+
+void initTokenNumPi(Lexer* lx){
+    Token t;
+    char temp[4] = "pi\0";
+    strncpy(t.lexeme, temp, sizeof(t.lexeme) - 1);
+    t.tokenType = TOKEN_ID;
+    t.tokenValue = ID_IMMUTABLE;
+    t.variableValue = 3.14159f;
+    insertHash(lx->st, t);
+}
+
+void initTokenNumEuler(Lexer* lx){
+    Token t;
+    char temp[3] = "e\0";
+    strncpy(t.lexeme, temp, sizeof(t.lexeme) - 1);
+    t.tokenType = TOKEN_ID;
+    t.tokenValue = ID_IMMUTABLE;
+    t.variableValue = 2.71828f;
+    insertHash(lx->st, t);
+}
+
+void initReservedNums(Lexer *lx){
+    initTokenNumPi(lx);
+    initTokenNumEuler(lx);
 }
 
 static void lexicalError(const char *errorMessage){
@@ -87,6 +111,7 @@ void initLexer(Lexer *lx, FILE *file, SymbolTableHash *st) {
     lx->lineNumber = 0;
     lx->eof = false;
     lx->hasLine = false;
+    initReservedNums(lx);
 }
 
 static bool readNextLine(Lexer *lx) {
@@ -189,47 +214,6 @@ static Token getTOKEN_OPERATOR(Lexer *lx){
     return t;
 }
 
-static Token getTOKEN_NUM_PI(Lexer *lx, Token tokenPi) {
-    if (lx->cursor + 1 >= lx->lineSize) return tokenPi;
-
-    if (lx->line[lx->cursor] == 'p' && lx->line[lx->cursor + 1] == 'i') {
-        char next = (lx->cursor + 2 < lx->lineSize) ? lx->line[lx->cursor + 2] : '\0';
-        if (!isLetter(next) && !isDigit(next)) {
-            tokenPi.lexeme[0] = 'p';
-            tokenPi.lexeme[1] = 'i';
-            tokenPi.lexeme[2] = '\0';
-
-            tokenPi.tokenType = TOKEN_NUM;
-            tokenPi.tokenValue = NUM_PI;
-            tokenPi.variableValue = 3.1415926535f;
-
-            lx->cursor += 2;
-            return tokenPi;
-        }
-    }
-    return tokenPi;
-}
-
-static Token getTOKEN_NUM_E(Lexer *lx, Token tokenEuler) {
-    if (lx->cursor >= lx->lineSize) return tokenEuler;
-
-    if (lx->line[lx->cursor] == 'e') {
-        char next = (lx->cursor + 1 < lx->lineSize) ? lx->line[lx->cursor + 1] : '\0';
-        if (!isLetter(next) && !isDigit(next)) {
-            tokenEuler.lexeme[0] = 'e';
-            tokenEuler.lexeme[1] = '\0';
-
-            tokenEuler.tokenType = TOKEN_NUM;
-            tokenEuler.tokenValue = NUM_EULER;
-            tokenEuler.variableValue = 2.71828f;
-
-            lx->cursor++;
-            return tokenEuler;
-        }
-    }
-    return tokenEuler;
-}
-
 static Token getTOKEN_FUNCTION_LOG(Lexer *lx, Token tokenLog){
     if (lx->cursor + 2 >= lx->lineSize) return tokenLog;
 
@@ -281,28 +265,12 @@ static Token getTOKEN_FUNCTION_PRINT(Lexer *lx, Token tokenPrint){
     return tokenPrint;
 }
 
-static Token getTOKEN_ID_or_reserved(Lexer *lx){
+static Token getTOKEN_ID(Lexer *lx){
     Token t;
     t.tokenType = TOKEN_ERROR;
     t.tokenValue = NONE;
     t.variableValue = -1.0f;
     t.lexeme[0] = '\0';
-
-    if (isLetter(lx->line[lx->cursor])) {
-        if (lx->line[lx->cursor] == 'e') {
-            t = getTOKEN_NUM_E(lx, t);
-            if (t.tokenValue == NUM_EULER) return t;
-        } else if (lx->line[lx->cursor] == 'p') {
-            t = getTOKEN_NUM_PI(lx, t);
-            if (t.tokenValue == NUM_PI) return t;
-
-            t = getTOKEN_FUNCTION_PRINT(lx, t);
-            if (t.tokenValue == FUNCTION_PRINT) return t;
-        } else if (lx->line[lx->cursor] == 'l') {
-            t = getTOKEN_FUNCTION_LOG(lx, t);
-            if (t.tokenValue == FUNCTION_LOG) return t;
-        }
-    }
 
     char temp[256];
     int i = 0;
@@ -315,7 +283,11 @@ static Token getTOKEN_ID_or_reserved(Lexer *lx){
     temp[i] = '\0';
 
     strncpy(t.lexeme, temp, sizeof(t.lexeme) - 1);
+    Token* found = searchHash(lx->st, temp);
     t.lexeme[sizeof(t.lexeme) - 1] = '\0';
+    if (found && found->tokenValue == ID_IMMUTABLE) {
+        return *found;
+    }
     t.tokenType = TOKEN_ID;
     t.tokenValue = ID;
     t.variableValue = -1.0f;
@@ -381,7 +353,21 @@ static Token scanToken(Lexer *lx){
 
     if (isDigit(c)) return getTOKEN_NUM(lx);
 
-    if (isLetter(c)) return getTOKEN_ID_or_reserved(lx);
+    if (isLetter(c)) {
+        Token tk;
+        tk.tokenType = TOKEN_ERROR;
+        tk.tokenValue = NONE;
+        tk.variableValue = -1.0f;
+        tk.lexeme[0] = '\0';
+
+        tk = getTOKEN_FUNCTION_PRINT(lx, tk);
+        if (tk.tokenType == TOKEN_FUNCTION) return tk;
+
+        tk = getTOKEN_FUNCTION_LOG(lx, tk);
+        if (tk.tokenType == TOKEN_FUNCTION) return tk;
+
+        return getTOKEN_ID(lx);
+    }
 
     if (c == '-') {
         if (lx->cursor + 1 < lx->lineSize && isDigit(lx->line[lx->cursor + 1])) {
@@ -411,18 +397,13 @@ Token getNextToken(Lexer *lx){
                 return makeEofToken();
             }
         }
-
+        
         Token t = scanToken(lx);
 
         if (t.tokenType == TOKEN_ERROR && t.lexeme[0] == '\0') {
             lx->hasLine = false;
             continue;
         }
-
-        if (t.tokenType == TOKEN_ID && lx->st != NULL) {
-            insertHash(lx->st, t);
-        }
-
         return t;
     }
 }
