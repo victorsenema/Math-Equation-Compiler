@@ -327,6 +327,9 @@ static Token scanToken(Lexer *lx){
         if (matchKeyword(lx, "log",   3)) return makeFunctionIdToken(lx, "log",   3);
         if (matchKeyword(lx, "max",   3)) return makeFunctionIdToken(lx, "max",   3);
         if (matchKeyword(lx, "min",   3)) return makeFunctionIdToken(lx, "min",   3);
+        if (matchKeyword(lx, "sin",   3)) return makeFunctionIdToken(lx, "sin",   3);
+        if (matchKeyword(lx, "cos",   3)) return makeFunctionIdToken(lx, "cos",   3);
+        if (matchKeyword(lx, "abs",   3)) return makeFunctionIdToken(lx, "abs",   3);
 
         return getTOKEN_ID(lx);
     }
@@ -366,6 +369,12 @@ Token getNextToken(Lexer *lx){
             lx->hasLine = false;
             continue;
         }
+        // //Debugger:
+        // printf("lexeme: %s tipo: %s value: %s valor: %f\n",
+        //     t.lexeme,
+        //     tokenTypeToString(t.tokenType),
+        //     tokenValueToString(t.tokenValue)
+        //     ,t.variableValue);
         return t;
     }
 }

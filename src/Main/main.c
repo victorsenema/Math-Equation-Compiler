@@ -1,18 +1,23 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
 #include "lexer.h"
 #include "symboltable.h"
 #include "token.h"
 #include "parser.h"
 
-static FILE* getFile(const char *fileName){
-    FILE *f = fopen(fileName, "r");
+#define CODE_DIR "Codes To Execute/"
+
+static FILE* getFile(const char *filePath){
+    FILE *f = fopen(filePath, "r");
     if(!f) perror("Could not open file");
     return f;
 }
 
 int main(void) {
     char fileName[256];
+    char fullPath[512];
 
     printf("Write the name of the .txt you want to compile:\n");
     if (scanf("%255s", fileName) != 1){
@@ -20,7 +25,9 @@ int main(void) {
         return 1;
     }
 
-    FILE *file = getFile(fileName);
+    snprintf(fullPath, sizeof(fullPath), "%s%s", CODE_DIR, fileName);
+
+    FILE *file = getFile(fullPath);
     if (!file) return 1;
 
     SymbolTableHash *st = initHash(499);
@@ -41,11 +48,13 @@ int main(void) {
         program(&lx, &tk, st);
 
         if (tk.tokenType != TOKEN_EOF) {
-            printf("PARSE ERROR: expected EOF, got type=%s value=%s lexeme='%s' (line %d)\n",
-            tokenTypeToString(tk.tokenType),
-            tokenValueToString(tk.tokenValue),
-            tk.lexeme,
-            lx.lineNumber);
+            printf(
+                "PARSE ERROR: expected EOF, got type=%s value=%s lexeme='%s' (line %d)\n",
+                tokenTypeToString(tk.tokenType),
+                tokenValueToString(tk.tokenValue),
+                tk.lexeme,
+                lx.lineNumber
+            );
         }
     }
 

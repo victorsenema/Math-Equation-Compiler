@@ -45,6 +45,8 @@ LL1:
               | id
               | num
               | function '(' <expressionE> ',' <expressionE> ')'
+<expressionF> → function '(' <expressionE> <arg2_opt> ')'
+<arg2_opt>    → ',' <expressionE> | ε
 */
 /*
 FIRST(<program>) = { id, function_print, ε }
@@ -81,13 +83,10 @@ FOLLOW(<expressionF>) = { '^', '*', '/', '%', '+', '-', ';', ')', ',' }
 #include "token.h"
 #include "lexer.h"
 #include "symboltable.h"
+#include "mathFunction.h"
 
 static void parserError(const char *msg);
 static void match(Lexer *lexer, Token *token, TokenType tt, TokenValue tv, const char *err);
-
-float logFunction(float num, float base);
-float maxFuntion(float num1, float num2);
-float minFunction(float num1, float num2);
 
 static bool isFunctionID(Token *token);
 static bool isPrint(Token *token);
@@ -131,24 +130,6 @@ static void match(Lexer *lexer, Token *token, TokenType tt, TokenValue tv, const
         }
 }
 
-float logFunction(float num, float base){
-        if (num <= 0.0 || base <= 0.0 || base == 1.0){
-                parserError("ERROR: Invalid input for log function");
-                return NAN;
-        }
-        return log(num) / log(base);
-}
-
-float maxFuntion(float num1, float num2){
-        if(num1 >= num2) return num1;
-        return num2;
-}
-
-float minFunction(float num1, float num2){
-        if(num1 >= num2) return num2;
-        return num1;
-}
-
 static bool isFunctionID(Token *token){
         return token-> tokenType == TOKEN_ID && token->tokenValue == ID_FUNCTION;
 }
@@ -158,22 +139,37 @@ static bool isPrint(Token *token){
 }
 
 static bool callFunction(const char* name, float num1, float num2, bool haveSecondArg, float* output) {
-    if (strcmp(name, "log") == 0) {
-        if (!haveSecondArg) return false;
-        *output = logFunction(num1,num2);
-        return true;
-    }
-    if (strcmp(name, "max") == 0) {
-        if (!haveSecondArg) return false;
-        *output = maxFuntion(num1,num2);
-        return true;
-    }
-    if (strcmp(name, "min") == 0) {
-        if (!haveSecondArg) return false;
-        *output = minFunction(num1,num2);
-        return true;
-    }
-    return false;
+        if (strcmp(name, "log") == 0) {
+                if (!haveSecondArg) return false;
+                *output = logFunction(num1,num2);
+                return true;
+        }
+        if (strcmp(name, "max") == 0) {
+                if (!haveSecondArg) return false;
+                *output = maxFunction(num1,num2);
+                return true;
+        }
+        if (strcmp(name, "min") == 0) {
+                if (!haveSecondArg) return false;
+                *output = minFunction(num1,num2);
+                return true;
+        }
+        if (strcmp(name, "sin") == 0) {
+                if (haveSecondArg) return false;
+                *output = sinFunction(num1);
+                return true;
+        }
+        if (strcmp(name, "cos") == 0) {
+                if (haveSecondArg) return false;
+                *output = cosFunction(num1);
+                return true;
+        }
+        if (strcmp(name, "abs") == 0) {
+                if (haveSecondArg) return false;
+                *output = absFunction(num1);
+                return true;
+        }
+        return false;
 }
 
 float executeOpration(TokenType type, TokenValue value, float num1, float num2){
@@ -269,7 +265,7 @@ float expressionF(Lexer *lexer, Token *token, SymbolTableHash* symbolTable){
                 if (token->tokenType == TOKEN_COMMA) {
                         hasArg2 = true;
                         match(lexer, token, TOKEN_COMMA, COMMA, "Expected ','\n");
-                    b = expressionE(lexer, token, symbolTable);
+                        b = expressionE(lexer, token, symbolTable);
                 }
                 match(lexer, token, TOKEN_PAREN, PAREN_CLOSE, "Expected ')'\n");
                 float out;
