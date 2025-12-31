@@ -115,6 +115,11 @@ An expression may contain:
 3.14
 42
 ```
+There are default number:
+```txt
+pi
+e
+```
 
 **Variables**
 ```txt
